@@ -1,0 +1,74 @@
+# Erstellt automatisch ein GitHub-Release mit ZIP, sobald in Wegweiser/Wegweiser.toc
+# eine neue "## Version:" auf main landet. Bereits vorhandene Versionen werden übersprungen.
+# Manuell auslösen: Actions → Release → Run workflow.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Wegweiser/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version aus der TOC lesen
+        id: version
+        run: |
+          version=$(grep -m1 '^## Version:' Wegweiser/Wegweiser.toc | sed 's/^## Version:[[:space:]]*//' | tr -d '\r')
+          if [ -z "$version" ]; then echo "Keine Version in der TOC gefunden" >&2; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Prüfen, ob es das Release schon gibt
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.version.outputs.tag }} existiert bereits – nichts zu tun."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: ZIP bauen
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          zip -r "Wegweiser-${{ steps.version.outputs.version }}.zip" Wegweiser -x '*.DS_Store'
+
+      - name: Release-Notizen aus dem CHANGELOG
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 ~ "^## " v "( |$)" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "### Installation"
+            echo "Download **Wegweiser-${{ steps.version.outputs.version }}.zip** below and extract the \`Wegweiser\` folder into \`Interface/AddOns\` of your WoW Forever client."
+            echo "Optional: install **QuestieDB** (ships with Questie on CurseForge) for suggestions and area overlap."
+          } >> notes.md
+          cat notes.md
+
+      - name: Release erstellen
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "Wegweiser-${{ steps.version.outputs.version }}.zip" \
+            --title "Wegweiser ${{ steps.version.outputs.version }}" \
+            --notes-file notes.md \
+            --target "${{ github.sha }}"
