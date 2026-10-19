@@ -52,6 +52,7 @@ function ns.RefreshOptions()
   checks.suggestStatus:SetText(suggestStatus())
   buttons.ignored:SetText(string.format(L["Ausgeblendete Vorschläge zeigen (%d)"], ns.CountOf("ignored")))
   buttons.parked:SetText(string.format(L["Geparkte Quests einplanen (%d)"], ns.CountOf("parked")))
+  buttons.unavailable:SetText(string.format(L["Am Questgeber gelernte Sperren löschen (%d)"], ns.CountOf("unavailable")))
 end
 
 local function build()
@@ -128,6 +129,7 @@ local function build()
   end
   button("ignored", function() ns.ResetList("ignored") end)
   button("parked", function() ns.ResetList("parked") end)
+  button("unavailable", function() ns.ResetList("unavailable") end)
   button("position", function() ns.ResetPosition() end):SetText(L["Panel-Position zurücksetzen"])
 
   y = y - 8

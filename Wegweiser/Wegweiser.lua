@@ -1,4 +1,4 @@
--- Wegweiser 0.5.0
+-- Wegweiser 0.5.1
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -167,6 +167,7 @@ local function collectPoints(m)
   preFetch = {}
   if DB.suggest and S and S.state == "ready" then
     local ctx = S.PlayerContext(DB.grey)
+    ctx.unavailable = DB.unavailable
     local _, px, py = playerPos()
     for _, s in ipairs(S.ForMap(m, px, py, DB.ignored, ctx)) do
       if not seen[s.q] then
@@ -876,6 +877,7 @@ ev:SetScript("OnEvent", function(_, event, a1, a2)
       if DB.suggest == nil then DB.suggest = true end
       DB.ignored = DB.ignored or {}
       DB.parked = DB.parked or {}
+      DB.unavailable = DB.unavailable or {}
       panel:ClearAllPoints()
       if DB.pos then
         panel:SetPoint(DB.pos[1], UIParent, DB.pos[2], DB.pos[3], DB.pos[4])
@@ -897,10 +899,16 @@ ev:SetScript("OnEvent", function(_, event, a1, a2)
     remember("turnins", a1)
     DB.parked[a1] = nil
     if a1 == lastTracked then lastTracked = nil end
+    ns.UnlockAfter(a1)
     requestLateRecalc()
   elseif event == "QUEST_REMOVED" then
     if a1 and not safe(C_QuestLog.IsQuestFlaggedCompleted, a1) then DB.parked[a1] = nil end
     requestLateRecalc()
+  elseif event == "PLAYER_LEVEL_UP" then
+    wipe(DB.unavailable)             -- neue Stufe: alles nochmals prüfen
+  elseif event == "GOSSIP_SHOW" or event == "QUEST_GREETING" or event == "QUEST_DETAIL" then
+    ns.LearnFromNpc(event)
+    return
   elseif event == "PLAYER_ENTERING_WORLD" then
     initMap()
     local S = ns.Suggest
@@ -912,6 +920,83 @@ ev:SetScript("OnEvent", function(_, event, a1, a2)
   requestRecalc()
 end)
 ev:RegisterEvent("PLAYER_LEVEL_UP")
+ev:RegisterEvent("GOSSIP_SHOW")
+ev:RegisterEvent("QUEST_GREETING")
+ev:RegisterEvent("QUEST_DETAIL")
+
+------------------------------------------------------------------------
+-- Lernen am Questgeber: Was bietet der NPC wirklich an?
+-- Die Datenbank kann Lücken haben (z.B. fehlende Vorquests bei neuen Forever-Quests).
+-- Wenn ein NPC eine vorgeschlagene Quest nicht anbietet, wird sie als «nicht verfügbar»
+-- gemerkt, bis sie beim nächsten Besuch angeboten wird, eine Vorquest abgegeben wird
+-- oder du eine Stufe aufsteigst.
+------------------------------------------------------------------------
+local function npcIdOf(unit)
+  local guid = UnitGUID and UnitGUID(unit)
+  if not guid then return nil end
+  local kind, _, _, _, _, id = strsplit("-", guid)
+  if kind ~= "Creature" then return nil end
+  return tonumber(id)
+end
+
+local function offeredQuests(event)
+  local offered, complete = {}, false
+  if event == "GOSSIP_SHOW" and C_GossipInfo and C_GossipInfo.GetAvailableQuests then
+    local list = safe(C_GossipInfo.GetAvailableQuests)
+    if type(list) == "table" then
+      complete = true
+      for _, info in ipairs(list) do
+        if info.questID then offered[info.questID] = true else complete = false end
+      end
+    end
+  elseif event == "QUEST_GREETING" and GetNumAvailableQuests and GetAvailableQuestInfo then
+    complete = true
+    for i = 1, GetNumAvailableQuests() or 0 do
+      local id = select(5, safe(GetAvailableQuestInfo, i))
+      if id then offered[id] = true else complete = false end
+    end
+  elseif event == "QUEST_DETAIL" and GetQuestID then
+    -- Questfenster: zeigt nur eine Quest. Taugt zum Freischalten, nicht zum Sperren,
+    -- weil es auch nach einem Klick in einer längeren Liste erscheint.
+    local id = safe(GetQuestID)
+    if id and id ~= 0 then offered[id] = true end
+  end
+  return offered, complete
+end
+
+function ns.LearnFromNpc(event)
+  local S = ns.Suggest
+  if not (DB and S and S.state == "ready") then return end
+  local npc = npcIdOf("npc")
+  local quests = npc and S.QuestsOfNpc(npc)
+  if not quests then return end
+  local offered, complete = offeredQuests(event)
+  local changed = false
+  for q in pairs(quests) do
+    if offered[q] then
+      if DB.unavailable[q] then DB.unavailable[q] = nil; changed = true end
+    elseif complete and not inLog(q) and not safe(C_QuestLog.IsQuestFlaggedCompleted, q)
+      and not DB.unavailable[q] then
+      DB.unavailable[q] = true
+      changed = true
+    end
+  end
+  if changed then lastTracked = nil; requestRecalc() end
+end
+
+-- Nach einer Abgabe: Sperren von Quests aufheben, deren Vorquest das war
+function ns.UnlockAfter(turnedIn)
+  local S = ns.Suggest
+  if not (DB and S and S.state == "ready" and turnedIn) then return end
+  for q in pairs(DB.unavailable) do
+    local pg, ps = S.Prereqs(q)
+    for _, list in ipairs({ pg or {}, ps or {} }) do
+      for _, p in ipairs(list) do
+        if p == turnedIn then DB.unavailable[q] = nil end
+      end
+    end
+  end
+end
 
 -- Distanzen laufend aktualisieren, Route alle 10 Sekunden neu rechnen
 local tick = 0

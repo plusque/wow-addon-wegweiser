@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1 – 2026-10-19
+- Learns from quest givers: when you talk to an NPC, quests it does not actually offer are no longer suggested. Works around gaps in QuestieDB for new Forever quests (e.g. "Stormy Potential" at Rezlak, whose prerequisite is missing in QuestieDB 1.0.6). Cleared on level-up, after turning in a prerequisite, or via the settings window
+
 ## 0.5.0 – 2026-10-18
 - German and English interface, following the client language
 

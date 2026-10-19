@@ -12,6 +12,7 @@ S.state = "off"          -- off | missing | outdated | indexing | ready | error
 local zoneIndex = {}     -- uiMapID -> { [questID] = { {x, y}, ... } }   Questgeber-Orte (0-1)
 local objIndex = {}      -- uiMapID -> { [questID] = { n = total, x1, y1, x2, y2, ... } } Zielpunkte
 local starter = {}       -- questID -> { kind = 1|2, id = npc/objectID, maps = { [uiMapID] = true } }
+local byNpc = {}         -- npcID -> { [questID] = true }  Quests, die dieser NPC laut DB vergibt
 local static = {}        -- questID -> zwischengespeicherte Felder
 local areaToUi = {}
 local npcCache, objCache, dropCache = {}, {}, {}
@@ -115,6 +116,10 @@ local function indexStarter(q)
           else
             local st = starter[q]
             if not st then st = { kind = kind, id = id, maps = {} }; starter[q] = st end
+            if kind == 1 then
+              byNpc[id] = byNpc[id] or {}
+              byNpc[id][q] = true
+            end
             st.maps[ui] = true
           end
         end
@@ -261,6 +266,8 @@ function S.Check(q, ctx, wantSoon)
   if active(q) or done(q) then return finish(nil) end
   local s = staticOf(q)
   if s.blocked then return finish(nil) end
+  -- Am Questgeber selbst festgestellt: wird (noch) nicht angeboten
+  if ctx.unavailable and ctx.unavailable[q] then return finish(nil) end
   if s.maxl ~= 0 and ctx.level > s.maxl then return finish(nil) end
   if not ctx.showGrey and s.ql > 0 and ctx.level - s.ql > trivialRange(ctx.level) then return finish(nil) end
   if s.rr ~= 0 and ctx.raceBit and not hasBit(s.rr, ctx.raceBit) then return finish(nil) end
@@ -424,6 +431,17 @@ function S.StarterInfo(q, preferNot)
   if st.kind == 1 then who = safe(NpcDB.name, st.id)
   elseif st.kind == 2 then who = safe(ObjectDB.name, st.id) end
   return mapName or "?", ui, who
+end
+
+-- Quests, die dieser NPC laut Datenbank vergibt
+function S.QuestsOfNpc(npcId)
+  return byNpc[npcId]
+end
+
+-- Vorquests laut Datenbank (für das Zurücksetzen gelernter Sperren)
+function S.Prereqs(q)
+  local s = staticOf(q)
+  return s.pg, s.ps
 end
 
 function S.Name(q)

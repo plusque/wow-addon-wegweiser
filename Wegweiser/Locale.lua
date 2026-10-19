@@ -82,6 +82,7 @@ local EN = {
   ["Fehler beim Laden"] = "error while loading",
   ["Ausgeblendete Vorschläge zeigen (%d)"] = "Show hidden suggestions (%d)",
   ["Geparkte Quests einplanen (%d)"] = "Schedule parked quests (%d)",
+  ["Am Questgeber gelernte Sperren löschen (%d)"] = "Clear quests learned as unavailable (%d)",
   ["Panel-Position zurücksetzen"] = "Reset panel position",
   ["Einstellungen öffnen"] = "Open settings",
   ["Klick"] = "Click",
