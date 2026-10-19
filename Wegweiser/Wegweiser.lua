@@ -1,4 +1,4 @@
--- Wegweiser 0.5.1
+-- Wegweiser 0.5.2
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -391,7 +391,33 @@ refresh:SetSize(16, 16)
 refresh:SetPoint("TOPRIGHT", -22, -3)
 refresh:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
 refresh:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
-refresh:SetScript("OnClick", function() if ns.forceRecalc then ns.forceRecalc() end end)
+-- Kurzes Aufleuchten des Panels als Rückmeldung
+local flash = panel:CreateTexture(nil, "BORDER")
+flash:SetAllPoints()
+flash:SetColorTexture(1, 0.82, 0, 1)
+flash:SetAlpha(0)
+local flashUntil = 0
+local function flashPanel()
+  local start = GetTime()
+  flashUntil = start + 2.5
+  local function step()
+    local t = GetTime() - start
+    if t >= 0.4 then flash:SetAlpha(0) return end
+    flash:SetAlpha(0.25 * (1 - t / 0.4))
+    C_Timer.After(0.03, step)
+  end
+  step()
+  C_Timer.After(2.6, function() if ns.renderHeader then ns.renderHeader() end end)
+end
+ns.IsFlashing = function() return GetTime() < flashUntil end
+
+refresh:SetScript("OnClick", function(self)
+  if ns.forceRecalc then ns.forceRecalc() end
+  self:Disable()
+  C_Timer.After(0.6, function() self:Enable() end)
+  flashPanel()
+  if ns.renderHeader then ns.renderHeader() end
+end)
 refresh:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:AddLine(L["Route neu berechnen"])
@@ -592,9 +618,20 @@ local function updateDistances()
   end
 end
 
-local function renderPanel()
+-- Kopfzeile: Kartenname, nach «neu berechnen» kurz die Bestätigung
+function ns.renderHeader()
+  if ns.IsFlashing and ns.IsFlashing() then
+    local n = #route
+    header:SetText("Wegweiser" .. COLOR_DONE .. "  " .. L["neu berechnet"] .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:12|t" ..
+      COLOR_DIM .. "  " .. n .. " " .. (n == 1 and L["Ort"] or L["Orte"]) .. "|r")
+    return
+  end
   local mapName = routeMapID and (safe(C_Map.GetMapInfo, routeMapID) or {}).name
   header:SetText("Wegweiser" .. (mapName and (COLOR_DIM .. "  " .. mapName .. "|r") or ""))
+end
+
+local function renderPanel()
+  ns.renderHeader()
 
   -- Abschnitt «Vorher holen in ...» (Questgeber in anderen Zonen)
   local groups = {}

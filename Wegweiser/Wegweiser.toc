@@ -3,7 +3,7 @@
 ## Notes-deDE: Sortiert deine Quests in der Zone in eine sinnvolle Reihenfolge - kurze Wege, kein Ort doppelt. /ww
 ## Notes: Orders the quests in your zone into a sensible route - short paths, no place twice. /ww
 ## Author: Philipp
-## Version: 0.5.1
+## Version: 0.5.2
 ## X-License: MIT
 ## X-Website: https://github.com/plusque/wow-addon-wegweiser
 ## SavedVariables: WegweiserDB

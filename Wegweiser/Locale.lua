@@ -6,6 +6,9 @@ local _, ns = ...
 local EN = {
   -- Panel
   ["Route neu berechnen"] = "Recalculate route",
+  ["neu berechnet"] = "recalculated",
+  ["Ort"] = "stop",
+  ["Orte"] = "stops",
   ["Einstellungen und Bedienung"] = "Settings and controls",
   ["Ort %d"] = "Stop %d",
   ["Wegweiser: Ort "] = "Wegweiser: stop ",
