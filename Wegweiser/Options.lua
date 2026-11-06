@@ -7,6 +7,7 @@ local L = ns.L
 local W, PAD = 360, 16
 local win
 local checks, buttons = {}, {}
+local radios
 
 local OPTIONS = {
   { key = "shown",   label = L["Panel anzeigen"] },
@@ -30,7 +31,7 @@ local HELP = {
   { L["Panel ziehen"],  L["verschieben"] },
 }
 
-local COMMANDS = L["/ww  Panel ein/aus   ·   /ww optionen   ·   /ww neu"]
+local COMMANDS = L["/ww  Panel ein/aus   ·   /ww optionen   ·   /ww neu   ·   /ww reichweite 0-2"]
 
 local function suggestStatus()
   local S = ns.Suggest
@@ -49,6 +50,7 @@ end
 function ns.RefreshOptions()
   if not win or not win:IsShown() then return end
   for _, c in ipairs(checks) do c:SetChecked(ns.Get(c.key) and true or false) end
+  for _, rb in ipairs(radios or {}) do rb:SetChecked((ns.Get("range") or 0) == rb.value) end
   checks.suggestStatus:SetText(suggestStatus())
   buttons.ignored:SetText(string.format(L["Ausgeblendete Vorschläge zeigen (%d)"], ns.CountOf("ignored")))
   buttons.parked:SetText(string.format(L["Geparkte Quests einplanen (%d)"], ns.CountOf("parked")))
@@ -114,6 +116,28 @@ local function build()
     end
     checks[#checks + 1] = c
     y = y - 24
+  end
+
+  y = y - 8
+  heading(L["Reichweite"])
+  radios = {}
+  for v = 0, 3 do
+    local rb = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
+    rb:SetSize(18, 18)
+    rb:SetPoint("TOPLEFT", PAD, y + 2)
+    rb.value = v
+    local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    label:SetPoint("LEFT", rb, "RIGHT", 4, 0)
+    if v > (ns.MAX_RANGE or 2) then
+      label:SetText(ns.RangeLabel(v) .. "  |cff9d9d9d" .. L["(folgt)"] .. "|r")
+      rb:Disable()
+      label:SetFontObject("GameFontDisable")
+    else
+      label:SetText(ns.RangeLabel(v))
+      rb:SetScript("OnClick", function(self) ns.Set("range", self.value) end)
+    end
+    radios[#radios + 1] = rb
+    y = y - 22
   end
 
   y = y - 8

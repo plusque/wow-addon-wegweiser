@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 – 2026-11-06
+- **Range setting** (settings window or `/ww range 0-2`):
+  - 0 – current zone only (as before, default)
+  - 1 – show other zones: zones with quests in your log plus up to three nearby zones that suit your level, one row each with a tooltip listing their route
+  - 2 – one route across zone borders on foot, based on world coordinates; zone changes are marked in the panel, map numbers appear in every zone of the route
+- Quests whose giver is in another zone of the route are now accepted beforehand instead of being listed under "Pick up first in …"
+- Distances in the panel are measured in world coordinates
+
 ## 0.5.2 – 2026-10-19
 - Recalculate button gives visible feedback: the panel flashes briefly and the header shows "recalculated ✓" with the number of stops for about two seconds
 

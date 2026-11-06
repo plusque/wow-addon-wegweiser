@@ -7,6 +7,18 @@ local EN = {
   -- Panel
   ["Route neu berechnen"] = "Recalculate route",
   ["neu berechnet"] = "recalculated",
+  ["Zone"] = "zone",
+  ["Zonen"] = "zones",
+  ["Abgeben"] = "turn in",
+  ["Annehmen"] = "accept",
+  ["Klick: ersten Ort dieser Zone verfolgen"] = "Click: track the first stop in this zone",
+  ["Reichweite"] = "Range",
+  ["reichweite"] = "range",
+  ["Nur aktuelle Zone"] = "Current zone only",
+  ["Weitere Zonen anzeigen"] = "Show other zones",
+  ["Route über Zonen (zu Fuss)"] = "Route across zones (on foot)",
+  ["Mit Reisen (Flugpunkte, Zeppelin, Ruhestein)"] = "With travel (flight paths, zeppelin, hearthstone)",
+  ["(folgt)"] = "(coming soon)",
   ["Ort"] = "stop",
   ["Orte"] = "stops",
   ["Einstellungen und Bedienung"] = "Settings and controls",
@@ -105,7 +117,7 @@ local EN = {
   ["Quests aus anderen Zonen für deine Route"] = "quests from other zones for your route",
   ["Panel ziehen"] = "Drag panel",
   ["verschieben"] = "move it",
-  ["/ww  Panel ein/aus   ·   /ww optionen   ·   /ww neu"] = "/ww  toggle panel   ·   /ww options   ·   /ww refresh",
+  ["/ww  Panel ein/aus   ·   /ww optionen   ·   /ww neu   ·   /ww reichweite 0-2"] = "/ww  toggle panel   ·   /ww options   ·   /ww refresh   ·   /ww range 0-2",
 }
 
 local useEnglish = (GetLocale and GetLocale() or "enUS") ~= "deDE"
