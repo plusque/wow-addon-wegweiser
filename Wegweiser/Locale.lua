@@ -90,6 +90,11 @@ local EN = {
   ["Setzt die Quest bzw. eine Kartenmarkierung für Ort 1."] = "Tracks the quest or sets a map pin for stop 1.",
   ["Benötigt das Addon QuestieDB."] = "Requires the QuestieDB addon.",
   ["Auch graue (zu tiefe) Quests vorschlagen"] = "Also suggest grey (low-level) quests",
+  ["Zu schwere Quests ausblenden"] = "Hide quests that are too hard",
+  ["Quests ab 3 Stufen über dir (orange/rot). Ohne Häkchen kommen sie ans Ende der Route."] =
+    "Quests 3 or more levels above you (orange/red). Unchecked, they go to the end of the route.",
+  ["[zu schwer]"] = "[too hard]",
+  ["Zu schwer: kommt erst am Schluss der Route."] = "Too hard: scheduled at the end of the route.",
   ["QuestieDB nicht installiert"] = "QuestieDB not installed",
   ["QuestieDB zu alt"] = "QuestieDB too old",
   ["wird geladen ..."] = "loading ...",

@@ -17,6 +17,8 @@ local OPTIONS = {
   { key = "suggest", label = L["Vorschläge zum Annehmen"],
     hint = L["Benötigt das Addon QuestieDB."] },
   { key = "grey",    label = L["Auch graue (zu tiefe) Quests vorschlagen"] },
+  { key = "hideHard", label = L["Zu schwere Quests ausblenden"],
+    hint = L["Quests ab 3 Stufen über dir (orange/rot). Ohne Häkchen kommen sie ans Ende der Route."] },
 }
 
 local HELP = {

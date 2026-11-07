@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 – 2026-11-07
+- Quest level shown in difficulty colours (red, orange, yellow, green, grey) in the panel and tooltips
+- Suggested quests 3 or more levels above you are no longer scheduled early: they go to the end of the route, marked "[too hard]"
+- New setting "Hide quests that are too hard" to leave them out entirely
+
 ## 0.6.0 – 2026-11-06
 - **Range setting** (settings window or `/ww range 0-2`):
   - 0 – current zone only (as before, default)

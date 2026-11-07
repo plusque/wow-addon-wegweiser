@@ -1,4 +1,4 @@
--- Wegweiser 0.6.0
+-- Wegweiser 0.6.1
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -160,6 +160,49 @@ local function trackStop(stop)
   end
 end
 
+------------------------------------------------------------------------
+-- Schwierigkeit
+------------------------------------------------------------------------
+local HARD_DIFF = 3            -- ab so vielen Stufen über dir gilt eine Quest als zu schwer
+
+-- Ab welchem Abstand gilt eine Quest als grau (Classic-Faustregel)
+local function greyRange(level)
+  if level <= 9 then return 4 elseif level <= 19 then return 5
+  elseif level <= 29 then return 6 elseif level <= 39 then return 7 end
+  return 8
+end
+
+-- Questlevel: aus dem Log, sonst aus QuestieDB
+local function questLevelOf(q)
+  local idx = safe(C_QuestLog.GetLogIndexForQuestID, q)
+  if idx and idx > 0 then
+    local info = safe(C_QuestLog.GetInfo, idx)
+    if info and info.level and info.level > 0 then return info.level end
+  end
+  local S = ns.Suggest
+  if S and S.state == "ready" then
+    local l = S.Level(q)
+    if l and l > 0 then return l end
+  end
+end
+
+-- Farbe wie im Questlog: rot, orange, gelb, grün, grau
+local function diffColor(ql)
+  local lvl = UnitLevel("player") or 1
+  local d = ql - lvl
+  if d >= 5 then return "|cffff2020"
+  elseif d >= HARD_DIFF then return "|cffff8040"
+  elseif d >= -2 then return "|cffffff00"
+  elseif -d <= greyRange(lvl) then return "|cff40c040" end
+  return "|cff808080"
+end
+
+local function levelTag(q)
+  local ql = questLevelOf(q)
+  if not ql then return "" end
+  return diffColor(ql) .. "[" .. ql .. "]|r "
+end
+
 local function progress(q)
   local objs = safe(C_QuestLog.GetQuestObjectives, q)
   if not objs or #objs == 0 then return "" end
@@ -226,9 +269,14 @@ local function collectPoints(m, seen, ctx, px, py)
     for _, s in ipairs(S.ForMap(m, px, py, DB.ignored, ctx)) do
       if not seen[s.q] then
         seen[s.q] = true
-        local p = newPoint(m, s.q, s.x, s.y)
-        p.accept = true
-        pts[#pts + 1] = p
+        local ql = S.Level(s.q) or 0
+        local hard = ql > 0 and ql - (UnitLevel("player") or 1) >= HARD_DIFF
+        if not (hard and DB.hideHard) then
+          local p = newPoint(m, s.q, s.x, s.y)
+          p.accept = true
+          p.hard = hard or nil
+          pts[#pts + 1] = p
+        end
       end
     end
 
@@ -466,9 +514,10 @@ end
 local pinnedQuest              -- Quest-ID des festgenagelten Orts (nur für diese Sitzung)
 
 local function buildRoute(m, px, py, pts)
-  local normal, parked = {}, {}
+  local normal, hard, parked = {}, {}, {}
   for _, p in ipairs(pts) do
     if DB.parked[p.q] then p.parked = true; parked[#parked + 1] = p
+    elseif p.hard and p.q ~= pinnedQuest then hard[#hard + 1] = p
     else normal[#normal + 1] = p end
   end
   local clusters = clusterPoints(m, normal)
@@ -512,6 +561,12 @@ local function buildRoute(m, px, py, pts)
     sx, sy = pinned.x, pinned.y
   end
   for _, c in ipairs(orderClusters(m, sx, sy, clusters, constraints)) do
+    res[#res + 1] = c
+    sx, sy = c.x, c.y
+  end
+  -- Zu schwere Quests (ab 3 Stufen über dir) kommen erst nach allem anderen
+  for _, c in ipairs(orderClusters(m, sx, sy, clusterPoints(m, hard))) do
+    c.hard = true
     res[#res + 1] = c
     sx, sy = c.x, c.y
   end
@@ -660,7 +715,8 @@ local function getRow(i)
       elseif it.accept then
         hasAccept = true
         local lvl = ns.Suggest.Level(it.q)
-        GameTooltip:AddDoubleLine(L["Annehmen: "] .. t, lvl > 0 and (L["Stufe "] .. lvl) or "", 0.4, 0.73, 1, 0.7, 0.7, 0.7)
+        GameTooltip:AddDoubleLine(L["Annehmen: "] .. t, lvl > 0 and (diffColor(lvl) .. L["Stufe "] .. lvl .. "|r") or "", 0.4, 0.73, 1, 0.7, 0.7, 0.7)
+        if it.hard then GameTooltip:AddLine("  " .. L["Zu schwer: kommt erst am Schluss der Route."], 1, 0.5, 0.25) end
       else
         GameTooltip:AddDoubleLine(t, progress(it.q), 1, 1, 1, 0.7, 0.7, 0.7)
       end
@@ -755,10 +811,10 @@ local function stopLabel(stop)
     if it.ready then
       parts[#parts + 1] = COLOR_DONE .. L["Abgeben:"] .. "|r " .. title(it.q)
     elseif it.accept then
-      parts[#parts + 1] = COLOR_ACCEPT .. L["Annehmen:"] .. "|r " .. title(it.q)
+      parts[#parts + 1] = COLOR_ACCEPT .. L["Annehmen:"] .. "|r " .. levelTag(it.q) .. title(it.q)
     else
       local p = progress(it.q)
-      parts[#parts + 1] = title(it.q) .. (p ~= "" and (" " .. COLOR_DIM .. p .. "|r") or "")
+      parts[#parts + 1] = levelTag(it.q) .. title(it.q) .. (p ~= "" and (" " .. COLOR_DIM .. p .. "|r") or "")
     end
   end
   return table.concat(parts, " + ")
@@ -889,9 +945,10 @@ local function renderPanel()
     if stop.pinned then num = num .. COLOR_NEXT .. L["[fix]"] .. "|r " end
     if #ns.LaterOf(stop) > 0 and not stop.parked then num = num .. COLOR_LATER .. "!|r " end
     local extra = stop.alsoHere and (" " .. COLOR_ACCEPT .. "+" .. #stop.alsoHere .. "|r") or ""
-    if stop.parked then
+    if stop.parked or stop.hard then
       local plain = stopLabel(stop):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-      r.text:SetText(COLOR_DIM .. i .. ". " .. L["[später]"] .. " " .. plain .. "|r")
+      local tag = stop.parked and L["[später]"] or ("|cffff8040" .. L["[zu schwer]"] .. "|r" .. COLOR_DIM)
+      r.text:SetText(COLOR_DIM .. i .. ". " .. tag .. " " .. plain .. "|r")
     else
       r.text:SetText(num .. (i == 1 and COLOR_NEXT or "") .. stopLabel(stop) .. "|r" .. extra)
     end
@@ -1430,6 +1487,10 @@ function ns.Set(key, value)
     recalc()
   elseif key == "grey" then
     DB.grey = value
+    recalc()
+  elseif key == "hideHard" then
+    DB.hideHard = value
+    lastTracked = nil
     recalc()
   elseif key == "range" then
     DB.range = math.max(0, math.min(MAX_RANGE, tonumber(value) or 0))
