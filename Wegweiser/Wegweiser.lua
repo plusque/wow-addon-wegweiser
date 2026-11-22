@@ -1,4 +1,4 @@
--- Wegweiser 0.6.4
+-- Wegweiser 0.6.5
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -696,7 +696,6 @@ panel:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
   local p, _, rp, x, y = self:GetPoint()
   DB.pos = { p, rp, x, y }
-  if ns.PlaceTargetButton then ns.PlaceTargetButton() end
 end)
 
 local bg = panel:CreateTexture(nil, "BACKGROUND")
@@ -705,7 +704,7 @@ bg:SetColorTexture(0, 0, 0, 0.55)
 
 local header = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 header:SetPoint("TOPLEFT", 8, -6)
-header:SetPoint("RIGHT", -82, 0)
+header:SetPoint("RIGHT", -64, 0)
 header:SetJustifyH("LEFT")
 header:SetText("Wegweiser")
 
@@ -766,89 +765,6 @@ close:SetSize(20, 20)
 close:SetPoint("TOPRIGHT", 0, 0)
 close:SetScript("OnClick", function() panel:Hide(); DB.shown = false end)
 
--- Questgeber anvisieren: sicherer Makro-Knopf. Er hängt an UIParent und nicht am Panel,
--- sonst würde das Panel geschützt und liesse sich im Kampf nicht mehr anpassen.
--- Position und Makro werden nur ausserhalb des Kampfs gesetzt.
-local TARGET_MARK = 2          -- Zielmarkierung «Kreis»
-local targetBtn = CreateFrame("Button", "WegweiserTargetButton", UIParent, "SecureActionButtonTemplate")
-targetBtn:SetSize(16, 16)
-targetBtn:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. TARGET_MARK)
-targetBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
-targetBtn:RegisterForClicks("AnyUp", "AnyDown")   -- Maus und Tastenbelegung (Taste unten)
-targetBtn:SetAttribute("type", "macro")
-targetBtn:SetAttribute("macrotext", "")
-targetBtn:Hide()
-local targetInfo               -- { name=, index= } nächster Questgeber zum Anvisieren
-local targetPending            -- im Kampf aufgeschoben
-
--- Nur anvisieren; die Markierung setzt PostClick im Addon-Code. Eine /run-Zeile im Makro
--- würde WoWs Warnung «benutzerdefiniertes Skript» auslösen.
-local function targetMacro(name)
-  if not name then return "" end
-  return "/targetexact " .. name
-end
-
-local function placeTargetButton()
-  if InCombatLockdown and InCombatLockdown() then targetPending = true return end
-  targetPending = nil
-  targetBtn:SetAttribute("macrotext", targetMacro(targetInfo and targetInfo.name))
-  local nt = targetBtn:GetNormalTexture()
-  if nt and nt.SetDesaturated then nt:SetDesaturated(not targetInfo) end
-  local r, t = panel:GetRight(), panel:GetTop()
-  if panel:IsShown() and r and t then
-    targetBtn:ClearAllPoints()
-    targetBtn:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", r - 60, t - 3)
-    targetBtn:SetFrameStrata(panel:GetFrameStrata())
-    targetBtn:SetFrameLevel(panel:GetFrameLevel() + 5)
-    targetBtn:Show()
-  else
-    targetBtn:Hide()
-  end
-end
-ns.PlaceTargetButton = placeTargetButton
-
-targetBtn:SetScript("PostClick", function()
-  local name = targetInfo and targetInfo.name
-  if name and UnitName("target") == name and GetRaidTargetIndex("target") ~= TARGET_MARK then
-    SetRaidTarget("target", TARGET_MARK)
-  end
-end)
-
-targetBtn:SetScript("OnEnter", function(self)
-  GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-  if targetInfo then
-    GameTooltip:AddLine(L["Anvisieren: "] .. targetInfo.name)
-    GameTooltip:AddLine(string.format(L["Questgeber an Ort %d. Klappt nur in Sichtweite; markiert ihn mit einem Kreis."], targetInfo.index), 1, 1, 1, true)
-  else
-    GameTooltip:AddLine(L["Kein Questgeber zum Anvisieren"])
-  end
-  GameTooltip:AddLine(L["Taste belegen: Optionen > Tastaturbelegung > AddOns > Wegweiser"], 0.6, 0.6, 0.6, true)
-  GameTooltip:Show()
-end)
-targetBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-panel:HookScript("OnShow", placeTargetButton)
-panel:HookScript("OnHide", placeTargetButton)
-
--- Nächster Annehmen-Questgeber (NPC) der Route
-local function updateTarget()
-  local S, found = ns.Suggest, nil
-  if S and S.GiverInfo then
-    for i, stop in ipairs(route) do
-      if not (stop.full or stop.parked) then
-        for _, it in ipairs(stop.items) do
-          if it.accept and it.giverKind == 1 then
-            local g = S.GiverInfo(1, it.giverId)
-            if g and g.name then found = { name = g.name, index = i } break end
-          end
-        end
-      end
-      if found then break end
-    end
-  end
-  local changed = (found and found.name) ~= (targetInfo and targetInfo.name)
-  targetInfo = found
-  if changed or targetPending then placeTargetButton() end
-end
 
 local footer = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 footer:SetJustifyH("LEFT")
@@ -1204,7 +1120,6 @@ local function renderPanel()
   footer:SetText(footerText or "")
   panel:SetHeight(30 + top + n * ROW_H + zoneH + (footerText and (footer:GetStringHeight() + 4) or 0))
   updateDistances()
-  placeTargetButton()            -- Höhe kann die Oberkante verschoben haben
 end
 
 ------------------------------------------------------------------------
@@ -1481,7 +1396,6 @@ local function recalc()
     end
   end
 
-  updateTarget()
   if panel:IsShown() then renderPanel() end
   refreshPins()
 end
@@ -1563,12 +1477,7 @@ ev:RegisterEvent("QUEST_TURNED_IN")
 ev:RegisterEvent("QUEST_REMOVED")
 ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 ev:RegisterEvent("ZONE_CHANGED")
-ev:RegisterEvent("PLAYER_REGEN_ENABLED")
 ev:SetScript("OnEvent", function(_, event, a1, a2)
-  if event == "PLAYER_REGEN_ENABLED" then
-    if targetPending then placeTargetButton() end
-    return
-  end
   if event == "ADDON_LOADED" then
     if a1 == ADDON_NAME then
       WegweiserDB = type(WegweiserDB) == "table" and WegweiserDB or {}
@@ -1728,7 +1637,6 @@ local function resetPosition()
   panel:ClearAllPoints()
   panel:SetPoint("RIGHT", UIParent, "RIGHT", -60, 120)
   panel:Show(); DB.shown = true
-  placeTargetButton()
 end
 
 -- Ein Schalter aendern; value = nil heisst umschalten

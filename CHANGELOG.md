@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.5 – 2026-11-22
+- Target button removed again: the WoW Forever client blocks it ("reserved for the Blizzard UI"). Quest giver names, titles and walking paths stay
+
 ## 0.6.4 – 2026-11-22
 - Target button no longer triggers WoW's "custom scripts" warning: the macro only targets, the circle marker is set by the addon itself
 

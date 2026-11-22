@@ -28,7 +28,6 @@ local HELP = {
   { L["Strg-Klick"],    L["auf später parken (nochmals: wieder einplanen)"] },
   { L["Rechtsklick"],   L["Vorschlag ausblenden"] },
   { L["Pfeil-Knopf"],   L["Route sofort neu berechnen"] },
-  { L["Zielsymbol"],    L["nächsten Questgeber anvisieren und markieren"] },
   { "|cffff9900!|r  " .. L["im Panel"],  L["Ort kommt später nochmal (Grund im Tooltip)"] },
   { "|cff66bbff+1|r " .. L["im Panel"], L["andere Quest hier gleich miterledigen"] },
   { L["Vorher holen"],  L["Quests aus anderen Zonen für deine Route"] },

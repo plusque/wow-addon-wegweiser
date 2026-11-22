@@ -101,15 +101,6 @@ local EN = {
   ["Gegenstand: "] = "Object: ",
   ["wandert umher (Laufweg auf der Weltkarte)"] = "walks around (path on the world map)",
   ["%d Standorte, der nächste ist eingeplant"] = "%d locations, the nearest one is scheduled",
-  ["Anvisieren: "] = "Target: ",
-  ["Questgeber an Ort %d. Klappt nur in Sichtweite; markiert ihn mit einem Kreis."] =
-    "Quest giver at stop %d. Works only within sight; marks them with a circle.",
-  ["Kein Questgeber zum Anvisieren"] = "No quest giver to target",
-  ["Taste belegen: Optionen > Tastaturbelegung > AddOns > Wegweiser"] =
-    "Bind a key: Options > Keybindings > AddOns > Wegweiser",
-  ["Nächsten Questgeber anvisieren"] = "Target next quest giver",
-  ["Zielsymbol"] = "Target icon",
-  ["nächsten Questgeber anvisieren und markieren"] = "target and mark the next quest giver",
 
   -- Questlog
   ["Questlog"] = "Quest log",
@@ -164,6 +155,3 @@ ns.L = setmetatable({}, {
 })
 ns.isEnglish = useEnglish
 
--- Tastaturbelegung (Bindings.xml)
-BINDING_HEADER_WEGWEISER = "Wegweiser"
-_G["BINDING_NAME_CLICK WegweiserTargetButton:LeftButton"] = ns.L["Nächsten Questgeber anvisieren"]
