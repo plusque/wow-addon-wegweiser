@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 – 2026-11-22
+- **Quest log aware routes:** the route keeps track of your quest log along the way – a turn-in frees a slot, accepting takes one. Suggestions to accept are only scheduled while there is room, and if a slot only opens up after a turn-in, they come after it
+- If there are more suggestions than room, the ones that matter most are kept: pinned first, then quests with objectives where your route goes anyway, then the closest ones; quests that are too hard come last
+- Suggestions without room go to the end of the route, marked "[no room]"; the footer shows e.g. "Quest log 23/25: 6 suggestions waiting for room"
+- New setting "Keep slots free" (default 2) for quests that start from loot or escort NPCs; also `/ww reserve 0-10`, `/ww log` shows the current state
+
 ## 0.6.1 – 2026-11-07
 - Quest level shown in difficulty colours (red, orange, yellow, green, grey) in the panel and tooltips
 - Suggested quests 3 or more levels above you are no longer scheduled early: they go to the end of the route, marked "[too hard]"

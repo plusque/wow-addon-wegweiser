@@ -95,6 +95,20 @@ local EN = {
     "Quests 3 or more levels above you (orange/red). Unchecked, they go to the end of the route.",
   ["[zu schwer]"] = "[too hard]",
   ["Zu schwer: kommt erst am Schluss der Route."] = "Too hard: scheduled at the end of the route.",
+
+  -- Questlog
+  ["Questlog"] = "Quest log",
+  ["[kein Platz]"] = "[no room]",
+  ["Kein Platz im Questlog: kommt ans Ende, bis du etwas abgegeben hast."] =
+    "No room in your quest log: scheduled at the end until you turn something in.",
+  ["Questlog %d/%d: %d Vorschläge warten auf Platz"] = "Quest log %d/%d: %d suggestions waiting for room",
+  ["Questlog %d/%d, reserviert: %d"] = "Quest log %d/%d, kept free: %d",
+  ["Plätze frei lassen"] = "Keep slots free",
+  ["Plätze frei lassen: %d"] = "Keep slots free: %d",
+  ["(Questlog %d/%d)"] = "(quest log %d/%d)",
+  ["Für Quests, die unterwegs per Beute oder Begleit-NPC starten. Annehmen-Vorschläge werden nur eingeplant, solange darüber hinaus Platz ist; Abgaben auf der Route geben Platz frei."] =
+    "For quests that start from loot or escort NPCs along the way. Suggestions to accept are only scheduled while there is room beyond that; turn-ins on the route free up slots.",
+  ["Questlog voll: kommt nach den Abgaben"] = "quest log full: comes after turn-ins",
   ["QuestieDB nicht installiert"] = "QuestieDB not installed",
   ["QuestieDB zu alt"] = "QuestieDB too old",
   ["wird geladen ..."] = "loading ...",

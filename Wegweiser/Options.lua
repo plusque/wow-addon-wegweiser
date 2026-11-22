@@ -8,6 +8,7 @@ local W, PAD = 360, 16
 local win
 local checks, buttons = {}, {}
 local radios
+local reserveText
 
 local OPTIONS = {
   { key = "shown",   label = L["Panel anzeigen"] },
@@ -30,6 +31,7 @@ local HELP = {
   { "|cffff9900!|r  " .. L["im Panel"],  L["Ort kommt später nochmal (Grund im Tooltip)"] },
   { "|cff66bbff+1|r " .. L["im Panel"], L["andere Quest hier gleich miterledigen"] },
   { L["Vorher holen"],  L["Quests aus anderen Zonen für deine Route"] },
+  { L["[kein Platz]"],  L["Questlog voll: kommt nach den Abgaben"] },
   { L["Panel ziehen"],  L["verschieben"] },
 }
 
@@ -54,6 +56,11 @@ function ns.RefreshOptions()
   for _, c in ipairs(checks) do c:SetChecked(ns.Get(c.key) and true or false) end
   for _, rb in ipairs(radios or {}) do rb:SetChecked((ns.Get("range") or 0) == rb.value) end
   checks.suggestStatus:SetText(suggestStatus())
+  if reserveText and ns.LogState then
+    local used, max, reserve = ns.LogState()
+    reserveText:SetText(string.format(L["Plätze frei lassen: %d"], reserve)
+      .. "   |cff9d9d9d" .. string.format(L["(Questlog %d/%d)"], used, max) .. "|r")
+  end
   buttons.ignored:SetText(string.format(L["Ausgeblendete Vorschläge zeigen (%d)"], ns.CountOf("ignored")))
   buttons.parked:SetText(string.format(L["Geparkte Quests einplanen (%d)"], ns.CountOf("parked")))
   buttons.unavailable:SetText(string.format(L["Am Questgeber gelernte Sperren löschen (%d)"], ns.CountOf("unavailable")))
@@ -141,6 +148,31 @@ local function build()
     radios[#radios + 1] = rb
     y = y - 22
   end
+
+  y = y - 8
+  heading(L["Questlog"])
+  local function step(text, delta, x)
+    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    b:SetSize(22, 20)
+    b:SetPoint("TOPLEFT", x, y + 1)
+    b:SetText(text)
+    b:SetScript("OnClick", function()
+      ns.Set("reserve", (ns.Get("reserve") or 2) + delta)
+      ns.RefreshOptions()
+    end)
+    b:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(L["Plätze frei lassen"])
+      GameTooltip:AddLine(L["Für Quests, die unterwegs per Beute oder Begleit-NPC starten. Annehmen-Vorschläge werden nur eingeplant, solange darüber hinaus Platz ist; Abgaben auf der Route geben Platz frei."], 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  end
+  step("-", -1, PAD)
+  step("+", 1, PAD + 24)
+  reserveText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  reserveText:SetPoint("TOPLEFT", PAD + 54, y - 2)
+  y = y - 26
 
   y = y - 8
   heading(L["Zurücksetzen"])

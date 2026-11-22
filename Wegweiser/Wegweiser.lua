@@ -1,4 +1,4 @@
--- Wegweiser 0.6.1
+-- Wegweiser 0.6.2
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -11,6 +11,7 @@
 --   /ww grey       Auch graue (zu tiefe) Quests vorschlagen an/aus
 --   /ww neu        Route sofort neu berechnen (auch Knopf im Panel)
 --   /ww reichweite N  0 = nur Zone, 1 = weitere Zonen anzeigen, 2 = Route über Zonen
+--   /ww reserve N  so viele Plätze im Questlog frei lassen (ohne Zahl: Stand anzeigen)
 --   /ww unignore   Ausgeblendete Vorschläge wieder anzeigen
 --   /ww reset      Panel-Position zurücksetzen
 
@@ -22,6 +23,7 @@ local CLUSTER_RADIUS = 60      -- Yards: Punkte naeher als das gelten als ein Or
 local YARD_TO_M = 0.9144
 local MAX_ROWS = 12            -- mehr Orte zeigt das Panel nicht an
 local ACCEPT_WEIGHT = 0.6      -- wie stark spaetes Annehmen bestraft wird
+local LOG_FULL_PENALTY = 1e6   -- je Quest, die angenommen würde, obwohl das Log voll ist
 local RELATED_RADIUS = 250     -- Yards: Ziele so nah gelten als «gleiches Gebiet»
 local MAX_RANGE = 2            -- Reichweite: 0 Zone, 1 + weitere Zonen, 2 Route über Zonen (3 folgt)
 
@@ -39,6 +41,7 @@ local COLOR_DIM  = "|cff9d9d9d"
 local route = {}               -- aktuelle Route: Liste von Orten
 local routeMapID
 local otherZoneCount = 0
+local logState = { used = 0, max = 0, waiting = 0 }   -- Questlog beim letzten Rechnen
 local preFetch = {}            -- Kartenname -> { {q=, who=, forQ=}, ... }  «Vorher holen in ...»
 local zoneRoutes = {}          -- Stufe 1: { {m=, name=, route=, d=}, ... } weitere Zonen
 local lastTracked
@@ -133,6 +136,29 @@ end
 local function isReady(q)
   if safe(C_QuestLog.ReadyForTurnIn, q) then return true end
   return safe(C_QuestLog.IsComplete, q) and true or false
+end
+
+-- Questlog: wie viele Quests passen hinein, wie viele sind drin?
+local DEFAULT_LOG_MAX = 25
+local DEFAULT_RESERVE = 2      -- Plätze, die frei bleiben (Beute-Quests, Begleit-NPCs ...)
+local MAX_RESERVE = 10
+local function logMax()
+  local n = safe(C_QuestLog.GetMaxNumQuestsCanAccept) or safe(C_QuestLog.GetMaxNumQuests)
+  if type(n) == "number" and n > 0 then return n end
+  if type(MAX_QUESTS) == "number" and MAX_QUESTS > 0 then return MAX_QUESTS end
+  return DEFAULT_LOG_MAX
+end
+
+local function logUsed()
+  local n, used = safe(C_QuestLog.GetNumQuestLogEntries) or 0, 0
+  for i = 1, n do
+    local info = safe(C_QuestLog.GetInfo, i)
+    if info and not info.isHeader and info.questID and not info.isHidden
+      and not info.isTask and not info.isBounty then
+      used = used + 1
+    end
+  end
+  return used
 end
 
 local function title(q)
@@ -425,7 +451,9 @@ end
 
 -- Nächster Nachbar ab Spielerposition, danach 2-opt für einen offenen Pfad.
 -- constraints: { {a, b}, ... } heisst Ort a muss vor Ort b kommen (Indizes in cl).
-local function orderClusters(m, px, py, cl, constraints)
+-- slots: freie Plätze im Questlog zu Beginn (nil = nicht prüfen). Entlang der Route wird
+-- mitgezählt: Abgeben gibt einen Platz frei, Annehmen belegt einen.
+local function orderClusters(m, px, py, cl, constraints, slots)
   local n = #cl
   if n < 2 then return cl end
   local order, used = {}, {}
@@ -445,18 +473,29 @@ local function orderClusters(m, px, py, cl, constraints)
 
   -- Bewertung: Weglaenge plus Strafzuschlag, wenn Annehmen-Orte spaet kommen.
   -- Frueh annehmen heisst, die Ziele dieser Quests unterwegs miterledigen zu koennen.
-  local hasAccept = {}
+  local hasAccept, nAcc, nReady = {}, {}, {}
   for i, c in ipairs(cl) do
-    for _, it in ipairs(c.items) do if it.accept then hasAccept[i] = true break end end
+    nAcc[i], nReady[i] = 0, 0
+    for _, it in ipairs(c.items) do
+      if it.accept then hasAccept[i] = true; nAcc[i] = nAcc[i] + 1
+      elseif it.ready then nReady[i] = nReady[i] + 1 end
+    end
   end
   local pos = {}
   local function cost(o)
     local total, x, y = 0, px, py
-    local penalty = 0
+    local penalty, free, overflow = 0, slots, 0
     for rank, idx in ipairs(o) do
       local c = cl[idx]
       total = total + dist(m, x, y, c.x, c.y)
       if hasAccept[idx] then penalty = penalty + total end
+      if slots then
+        -- am selben Ort zuerst abgeben, dann annehmen
+        free = free + nReady[idx]
+        local take = math.min(nAcc[idx], math.max(free, 0))
+        overflow = overflow + nAcc[idx] - take
+        free = free - take
+      end
       x, y = c.x, c.y
       pos[idx] = rank
     end
@@ -464,7 +503,7 @@ local function orderClusters(m, px, py, cl, constraints)
     for _, k in ipairs(constraints or {}) do
       if pos[k[1]] > pos[k[2]] then violations = violations + 1 end
     end
-    return total + ACCEPT_WEIGHT * penalty + violations * 1e7
+    return total + ACCEPT_WEIGHT * penalty + violations * 1e7 + overflow * LOG_FULL_PENALTY
   end
 
   local best = cost(order)
@@ -513,10 +552,45 @@ end
 -- Gesamte Route: festgenagelter Ort zuerst, dann optimiert, geparkte Quests am Schluss
 local pinnedQuest              -- Quest-ID des festgenagelten Orts (nur für diese Sitzung)
 
-local function buildRoute(m, px, py, pts)
-  local normal, hard, parked = {}, {}, {}
+-- Questlog-Platz: nur so viele Annehmen-Orte einplanen, wie unterwegs Platz ist
+-- (freie Plätze + Abgaben auf der Route). Vorrang: festgenagelt, dann Quests mit Zielen
+-- im Gebiet einer Log-Quest, dann nahe an Spieler und Route, zu schwere zuletzt.
+-- Der Rest bekommt p.full und kommt ans Ende. Rückgabe: Anzahl ohne Platz.
+local function budgetAccepts(m, px, py, pts, free)
+  local budget, anchors, acc, related = free, { { x = px, y = py } }, {}, {}
+  for _, p in ipairs(pts) do
+    if not DB.parked[p.q] then
+      if p.accept then
+        acc[#acc + 1] = p
+      else
+        anchors[#anchors + 1] = p
+        if p.ready then budget = budget + 1 end
+        for _, q in ipairs(p.related and p.related.now or {}) do related[q] = true end
+      end
+    end
+  end
+  budget = math.max(budget, 0)
+  if #acc <= budget then return 0 end
+  for _, p in ipairs(acc) do
+    local d = 1e12
+    for _, a in ipairs(anchors) do
+      local da = dist(m, a.x, a.y, p.x, p.y)
+      if da < d then d = da end
+    end
+    local rank = (p.q == pinnedQuest and 0) or (p.hard and 3) or (related[p.q] and 1) or 2
+    p.sortKey = rank * 1e9 + d
+  end
+  table.sort(acc, function(a, b) return a.sortKey < b.sortKey end)
+  for i = budget + 1, #acc do acc[i].full = true end
+  return #acc - budget
+end
+
+-- free: freie Plätze im Questlog (nil = nicht prüfen)
+local function buildRoute(m, px, py, pts, free)
+  local normal, hard, full, parked = {}, {}, {}, {}
   for _, p in ipairs(pts) do
     if DB.parked[p.q] then p.parked = true; parked[#parked + 1] = p
+    elseif p.full and p.q ~= pinnedQuest then full[#full + 1] = p
     elseif p.hard and p.q ~= pinnedQuest then hard[#hard + 1] = p
     else normal[#normal + 1] = p end
   end
@@ -559,14 +633,25 @@ local function buildRoute(m, px, py, pts)
     pinned.pinned = true
     res[1] = pinned
     sx, sy = pinned.x, pinned.y
+    if free then
+      for _, it in ipairs(pinned.items) do
+        if it.ready then free = free + 1 elseif it.accept then free = free - 1 end
+      end
+    end
   end
-  for _, c in ipairs(orderClusters(m, sx, sy, clusters, constraints)) do
+  for _, c in ipairs(orderClusters(m, sx, sy, clusters, constraints, free)) do
     res[#res + 1] = c
     sx, sy = c.x, c.y
   end
   -- Zu schwere Quests (ab 3 Stufen über dir) kommen erst nach allem anderen
   for _, c in ipairs(orderClusters(m, sx, sy, clusterPoints(m, hard))) do
     c.hard = true
+    res[#res + 1] = c
+    sx, sy = c.x, c.y
+  end
+  -- Annehmen ohne Platz im Questlog: ganz am Schluss, bis etwas abgegeben ist
+  for _, c in ipairs(orderClusters(m, sx, sy, clusterPoints(m, full))) do
+    c.full = true
     res[#res + 1] = c
     sx, sy = c.x, c.y
   end
@@ -716,7 +801,11 @@ local function getRow(i)
         hasAccept = true
         local lvl = ns.Suggest.Level(it.q)
         GameTooltip:AddDoubleLine(L["Annehmen: "] .. t, lvl > 0 and (diffColor(lvl) .. L["Stufe "] .. lvl .. "|r") or "", 0.4, 0.73, 1, 0.7, 0.7, 0.7)
-        if it.hard then GameTooltip:AddLine("  " .. L["Zu schwer: kommt erst am Schluss der Route."], 1, 0.5, 0.25) end
+        if it.full then
+          GameTooltip:AddLine("  " .. L["Kein Platz im Questlog: kommt ans Ende, bis du etwas abgegeben hast."], 1, 0.5, 0.25, true)
+        elseif it.hard then
+          GameTooltip:AddLine("  " .. L["Zu schwer: kommt erst am Schluss der Route."], 1, 0.5, 0.25)
+        end
       else
         GameTooltip:AddDoubleLine(t, progress(it.q), 1, 1, 1, 0.7, 0.7, 0.7)
       end
@@ -945,9 +1034,11 @@ local function renderPanel()
     if stop.pinned then num = num .. COLOR_NEXT .. L["[fix]"] .. "|r " end
     if #ns.LaterOf(stop) > 0 and not stop.parked then num = num .. COLOR_LATER .. "!|r " end
     local extra = stop.alsoHere and (" " .. COLOR_ACCEPT .. "+" .. #stop.alsoHere .. "|r") or ""
-    if stop.parked or stop.hard then
+    if stop.parked or stop.hard or stop.full then
       local plain = stopLabel(stop):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-      local tag = stop.parked and L["[später]"] or ("|cffff8040" .. L["[zu schwer]"] .. "|r" .. COLOR_DIM)
+      local tag = stop.parked and L["[später]"]
+        or stop.full and L["[kein Platz]"]
+        or ("|cffff8040" .. L["[zu schwer]"] .. "|r" .. COLOR_DIM)
       r.text:SetText(COLOR_DIM .. i .. ". " .. tag .. " " .. plain .. "|r")
     else
       r.text:SetText(num .. (i == 1 and COLOR_NEXT or "") .. stopLabel(stop) .. "|r" .. extra)
@@ -968,7 +1059,9 @@ local function renderPanel()
     local nAcc, nDone = 0, 0
     for _, stop in ipairs(z.route) do
       for _, it in ipairs(stop.items) do
-        if it.accept then nAcc = nAcc + 1 elseif it.ready then nDone = nDone + 1 end
+        if it.accept then
+          if not it.full then nAcc = nAcc + 1 end
+        elseif it.ready then nDone = nDone + 1 end
       end
     end
     local parts = {}
@@ -986,6 +1079,10 @@ local function renderPanel()
   if #route == 0 then notes[#notes + 1] = L["Keine Quests in dieser Zone."] end
   if #route > n then notes[#notes + 1] = "+" .. (#route - n) .. L[" weitere Orte"] end
   if otherZoneCount > 0 then notes[#notes + 1] = otherZoneCount .. L[" Quest(s) in anderen Zonen"] end
+  if logState.waiting > 0 then
+    notes[#notes + 1] = string.format(L["Questlog %d/%d: %d Vorschläge warten auf Platz"],
+      logState.used, logState.max, logState.waiting)
+  end
   local S = ns.Suggest
   if DB.suggest and S then
     if S.state == "missing" then notes[#notes + 1] = L["Vorschläge: QuestieDB nicht installiert"]
@@ -1181,6 +1278,11 @@ local function recalc()
   end
 
   -- Route(n) bauen
+  -- Questlog: freie Plätze abzüglich Reserve (kann negativ sein, wenn die Reserve schon belegt ist)
+  logState.used, logState.max = logUsed(), logMax()
+  local free = logState.max - (DB.reserve or DEFAULT_RESERVE) - logState.used
+  logState.waiting = 0
+
   local pinnedFound = false
   zoneRoutes = {}
   if range >= 2 then
@@ -1193,13 +1295,16 @@ local function recalc()
         end
       end
     end
-    route, pinnedFound = buildRoute(WORLD, pwx, pwy, all)
+    logState.waiting = budgetAccepts(WORLD, pwx, pwy, all, free)
+    route, pinnedFound = buildRoute(WORLD, pwx, pwy, all, free)
   else
-    route, pinnedFound = buildRoute(m, px, py, byZone[1].pts)
+    logState.waiting = budgetAccepts(m, px, py, byZone[1].pts, free)
+    route, pinnedFound = buildRoute(m, px, py, byZone[1].pts, free)
     if range == 1 then
       for i = 2, #byZone do
         local zb = byZone[i]
-        local r, found = buildRoute(zb.m, zb.sx, zb.sy, zb.pts)
+        budgetAccepts(zb.m, zb.sx, zb.sy, zb.pts, free)
+        local r, found = buildRoute(zb.m, zb.sx, zb.sy, zb.pts, free)
         pinnedFound = pinnedFound or found
         if #r > 0 then
           local d = pcont and stopDist({ cont = pcont, wx = pwx, wy = pwy }, r[1]) or 1e9
@@ -1317,6 +1422,7 @@ ev:SetScript("OnEvent", function(_, event, a1, a2)
       if DB.shown == nil then DB.shown = true end
       if DB.suggest == nil then DB.suggest = true end
       if DB.range == nil then DB.range = 0 end
+      if DB.reserve == nil then DB.reserve = DEFAULT_RESERVE end
       DB.ignored = DB.ignored or {}
       DB.parked = DB.parked or {}
       DB.unavailable = DB.unavailable or {}
@@ -1492,6 +1598,11 @@ function ns.Set(key, value)
     DB.hideHard = value
     lastTracked = nil
     recalc()
+  elseif key == "reserve" then
+    DB.reserve = math.max(0, math.min(MAX_RESERVE, math.floor(tonumber(value) or DEFAULT_RESERVE)))
+    lastTracked = nil
+    recalc()
+    value = DB.reserve
   elseif key == "range" then
     DB.range = math.max(0, math.min(MAX_RANGE, tonumber(value) or 0))
     lastTracked = nil
@@ -1503,6 +1614,10 @@ function ns.Set(key, value)
 end
 
 function ns.Get(key) return DB and DB[key] end
+ns.MAX_RESERVE = MAX_RESERVE
+function ns.LogState()
+  return logUsed(), logMax(), DB and DB.reserve or DEFAULT_RESERVE
+end
 
 function ns.CountOf(key)
   local n = 0
@@ -1546,6 +1661,12 @@ SlashCmdList.WEGWEISER = function(input)
     else
       msg(L["Reichweite"] .. ": " .. ns.RangeLabel(DB.range or 0) .. "  (/ww " .. L["reichweite"] .. " 0-" .. MAX_RANGE .. ")")
     end
+  elseif cmd == "reserve" or cmd == "log" then
+    local v = tonumber((input or ""):match("%d+"))
+    if v then ns.Set("reserve", v) end
+    local used, max, reserve = ns.LogState()
+    msg(string.format(L["Questlog %d/%d, reserviert: %d"], used, max, reserve)
+      .. (v and "" or "  (/ww reserve 0-" .. MAX_RESERVE .. ")"))
   elseif cmd == "neu" or cmd == "refresh" or cmd == "r" then
     forceRecalc()
     msg(L["Route neu berechnet."])

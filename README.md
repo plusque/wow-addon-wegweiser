@@ -26,6 +26,7 @@ It stays small on purpose: one panel, a few map numbers, almost no settings.
 - **You stay in control** – shift-click pins a stop as next, ctrl-click parks it for later, right-click hides a suggestion.
 - **World map numbers** – small badges next to Blizzard's quest icons, same size at every zoom level.
 - **Auto-tracking** – the next stop is tracked automatically (quest or map pin).
+- **Quest log aware** – suggestions are only scheduled while your quest log has room; turn-ins on the route free up slots, the rest waits at the end marked *[no room]*. A few slots stay free for loot quests (adjustable).
 - **Range** – plan just the current zone, show other zones that suit your level, or route across zone borders.
 - **German and English** – follows the client language.
 
@@ -52,7 +53,7 @@ Without QuestieDB, Wegweiser still sorts the quests in your log – just without
 | Arrow button | recalculate now |
 | Gear button | settings and a legend of all controls |
 
-**Commands:** `/ww` toggle panel · `/ww options` · `/ww refresh` · `/ww range 0-2` · `/ww track` · `/ww pins` · `/ww suggest` · `/ww grey` · `/ww unignore` · `/ww unpark` · `/ww reset`
+**Commands:** `/ww` toggle panel · `/ww options` · `/ww refresh` · `/ww range 0-2` · `/ww reserve 0-10` · `/ww track` · `/ww pins` · `/ww suggest` · `/ww grey` · `/ww unignore` · `/ww unpark` · `/ww reset`
 
 Settings are also available under *Esc → Options → AddOns → Wegweiser*.
 
@@ -99,6 +100,7 @@ Bewusst schlank: ein Panel, ein paar Nummern auf der Karte, kaum Einstellungen.
 - **Du behältst die Kontrolle** – Shift-Klick nagelt einen Ort als Nächstes fest, Strg-Klick parkt ihn auf später, Rechtsklick blendet einen Vorschlag aus.
 - **Nummern auf der Weltkarte** – kleine Abzeichen neben Blizzards Quest-Symbolen, bei jedem Zoom gleich gross.
 - **Automatisches Verfolgen** des nächsten Orts (Quest oder Kartenmarkierung).
+- **Questlog im Blick** – Vorschläge werden nur eingeplant, solange im Questlog Platz ist; Abgaben unterwegs geben Platz frei, der Rest wartet am Ende als *[kein Platz]*. Ein paar Plätze bleiben für Beute-Quests frei (einstellbar).
 - **Reichweite** – nur die aktuelle Zone, zusätzlich passende Nachbarzonen anzeigen oder eine Route über Zonengrenzen.
 - **Deutsch und Englisch** – richtet sich nach der Client-Sprache.
 
@@ -125,7 +127,7 @@ Ohne QuestieDB sortiert Wegweiser trotzdem die Quests in deinem Log – nur ohne
 | Pfeil-Knopf | sofort neu berechnen |
 | Zahnrad | Einstellungen und Legende aller Bedienelemente |
 
-**Befehle:** `/ww` Panel ein/aus · `/ww optionen` · `/ww neu` · `/ww reichweite 0-2` · `/ww track` · `/ww pins` · `/ww suggest` · `/ww grey` · `/ww unignore` · `/ww unpark` · `/ww reset`
+**Befehle:** `/ww` Panel ein/aus · `/ww optionen` · `/ww neu` · `/ww reichweite 0-2` · `/ww reserve 0-10` · `/ww track` · `/ww pins` · `/ww suggest` · `/ww grey` · `/ww unignore` · `/ww unpark` · `/ww reset`
 
 Die Einstellungen gibt es auch unter *Esc → Optionen → AddOns → Wegweiser*.
 
