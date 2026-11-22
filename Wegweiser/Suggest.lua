@@ -23,7 +23,7 @@ local EVENT_SORTS = {
   [-370] = true, [-369] = true, [-366] = true, [-364] = true, [-41] = true, [-22] = true,
   [-21] = true, [-1000] = true,
 }
-local MAX_POINTS = 6       -- Spawnpunkte pro Questgeber
+local MAX_POINTS = 40      -- Spawnpunkte pro Quest (wenige Questgeber haben mehr als 6)
 local MAX_OBJ_SAMPLES = 24 -- Zielpunkte pro Quest und Karte (gleichmässig ausgedünnt)
 local MAX_DROPPERS = 20    -- Beute, die mehr Gegner fallen lassen, gilt als zu allgemein
 local LOOKAHEAD_LEVELS = 2 -- «kommt später nochmal»: bis so viele Stufen voraus
@@ -109,7 +109,7 @@ local function indexStarter(q)
           for _, c in ipairs(coords) do
             if #pts >= MAX_POINTS then break end
             local x, y = c[1], c[2]
-            if x and y and x >= 0 and y >= 0 then pts[#pts + 1] = { x / 100, y / 100 } end
+            if x and y and x >= 0 and y >= 0 then pts[#pts + 1] = { x / 100, y / 100, kind, id } end
           end
           if #pts == 0 then
             zone[q] = nil
@@ -369,7 +369,7 @@ function S.ForMap(uiMapID, px, py, ignored, ctx)
         local d = dx * dx + dy * dy
         if not bd or d < bd then best, bd = p, d end
       end
-      res[#res + 1] = { q = q, x = best[1], y = best[2] }
+      res[#res + 1] = { q = q, x = best[1], y = best[2], kind = best[3], id = best[4] }
     end
   end
   return res
@@ -431,6 +431,46 @@ function S.StarterInfo(q, preferNot)
   if st.kind == 1 then who = safe(NpcDB.name, st.id)
   elseif st.kind == 2 then who = safe(ObjectDB.name, st.id) end
   return mapName or "?", ui, who
+end
+
+-- Wer ist der Questgeber? kind 1 = NPC, 2 = Objekt.
+-- Rückgabe: { name=, sub=, spawns = Anzahl Standorte, wanders = true|nil }
+local giverCache = {}
+function S.GiverInfo(kind, id)
+  if not (kind and id) or S.state ~= "ready" then return nil end
+  local key = kind * 10000000 + id
+  local g = giverCache[key]
+  if g then return g end
+  local db = kind == 1 and NpcDB or ObjectDB
+  g = { kind = kind, id = id, name = safe(db.name, id), spawns = 0 }
+  if kind == 1 then
+    local sub = safe(NpcDB.subName, id)
+    if type(sub) == "string" and sub ~= "" then g.sub = sub end
+  end
+  for _, coords in pairs(spawnsOf(kind, id) or {}) do g.spawns = g.spawns + #coords end
+  local wp = safe(db.waypoints, id)
+  if type(wp) == "table" and next(wp) then g.wanders = true end
+  giverCache[key] = g
+  return g
+end
+
+-- Laufwege des Questgebers auf einer Karte: { { {x, y}, ... }, ... } in 0-1
+function S.GiverPaths(kind, id, uiMapID)
+  local res = {}
+  if not (kind and id) or S.state ~= "ready" then return res end
+  local wp = safe((kind == 1 and NpcDB or ObjectDB).waypoints, id)
+  for areaId, paths in pairs(type(wp) == "table" and wp or {}) do
+    if areaToUi[areaId] == uiMapID then
+      for _, path in ipairs(paths) do
+        local pts = {}
+        for _, c in ipairs(path) do
+          if c[1] and c[2] and c[1] >= 0 then pts[#pts + 1] = { c[1] / 100, c[2] / 100 } end
+        end
+        if #pts > 0 then res[#res + 1] = pts end
+      end
+    end
+  end
+  return res
 end
 
 -- Quests, die dieser NPC laut Datenbank vergibt

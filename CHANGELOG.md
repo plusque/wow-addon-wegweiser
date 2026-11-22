@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3 – 2026-11-22
+- **Quest givers in tooltips:** suggestions to accept now show who gives the quest – name and title (e.g. "from Ragnar Thunderbrew <Innkeeper>") or the object (e.g. a wanted poster)
+- Quest givers that walk around are marked "walks around", and their path is drawn as small blue dots on the world map; givers with several locations show how many there are
+- **Target button** (circle icon in the panel header): targets the next quest giver of your route and marks them with a circle – handy in crowded towns, inns and buildings. Works within sight; also available as a key binding (Keybindings > AddOns > Wegweiser)
+- Quest givers with many spawn points: the nearest one is now found among up to 40 instead of 6
+
 ## 0.6.2 – 2026-11-22
 - **Quest log aware routes:** the route keeps track of your quest log along the way – a turn-in frees a slot, accepting takes one. Suggestions to accept are only scheduled while there is room, and if a slot only opens up after a turn-in, they come after it
 - If there are more suggestions than room, the ones that matter most are kept: pinned first, then quests with objectives where your route goes anyway, then the closest ones; quests that are too hard come last

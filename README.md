@@ -23,6 +23,7 @@ It stays small on purpose: one panel, a few map numbers, almost no settings.
   - available in this zone → **accepted beforehand automatically**, the row shows **+1**
   - quest giver in another zone → **"Pick up first in …"** section at the top of the panel
   - available soon (follow-up quest or up to 2 levels ahead) → **!** marker with a tip to park the stop
+- **Quest givers** – tooltips show who gives a quest (name and title, or the object); walking quest givers get their path on the world map. The circle button in the panel targets and marks the next quest giver (also as a key binding).
 - **You stay in control** – shift-click pins a stop as next, ctrl-click parks it for later, right-click hides a suggestion.
 - **World map numbers** – small badges next to Blizzard's quest icons, same size at every zoom level.
 - **Auto-tracking** – the next stop is tracked automatically (quest or map pin).
@@ -100,6 +101,7 @@ Bewusst schlank: ein Panel, ein paar Nummern auf der Karte, kaum Einstellungen.
 - **Du behältst die Kontrolle** – Shift-Klick nagelt einen Ort als Nächstes fest, Strg-Klick parkt ihn auf später, Rechtsklick blendet einen Vorschlag aus.
 - **Nummern auf der Weltkarte** – kleine Abzeichen neben Blizzards Quest-Symbolen, bei jedem Zoom gleich gross.
 - **Automatisches Verfolgen** des nächsten Orts (Quest oder Kartenmarkierung).
+- **Questgeber** – Tooltips zeigen, wer die Quest vergibt (Name und Titel bzw. Gegenstand); wandernde Questgeber bekommen ihren Laufweg auf der Weltkarte. Der Kreis-Knopf im Panel visiert den nächsten Questgeber an und markiert ihn (auch per Tastenbelegung).
 - **Questlog im Blick** – Vorschläge werden nur eingeplant, solange im Questlog Platz ist; Abgaben unterwegs geben Platz frei, der Rest wartet am Ende als *[kein Platz]*. Ein paar Plätze bleiben für Beute-Quests frei (einstellbar).
 - **Reichweite** – nur die aktuelle Zone, zusätzlich passende Nachbarzonen anzeigen oder eine Route über Zonengrenzen.
 - **Deutsch und Englisch** – richtet sich nach der Client-Sprache.

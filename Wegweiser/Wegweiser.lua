@@ -1,4 +1,4 @@
--- Wegweiser 0.6.2
+-- Wegweiser 0.6.3
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -229,6 +229,25 @@ local function levelTag(q)
   return diffColor(ql) .. "[" .. ql .. "]|r "
 end
 
+-- Questgeber einer Annehmen-Quest als Tooltip-Zeilen (Name <Titel>, wandert, mehrere Orte)
+local function giverLines(it, indent)
+  if not (it.accept and it.giverKind) then return end
+  local S = ns.Suggest
+  local g = S and S.GiverInfo and S.GiverInfo(it.giverKind, it.giverId)
+  if not (g and g.name) then return end
+  indent = indent or "  "
+  if g.kind == 2 then
+    GameTooltip:AddLine(indent .. L["Gegenstand: "] .. g.name, 0.85, 0.85, 0.85)
+  else
+    GameTooltip:AddLine(indent .. L["bei "] .. g.name .. (g.sub and (" <" .. g.sub .. ">") or ""), 0.85, 0.85, 0.85)
+  end
+  if g.wanders then
+    GameTooltip:AddLine(indent .. L["wandert umher (Laufweg auf der Weltkarte)"], 1, 0.82, 0)
+  elseif g.spawns > 1 then
+    GameTooltip:AddLine(indent .. string.format(L["%d Standorte, der nächste ist eingeplant"], g.spawns), 1, 0.82, 0)
+  end
+end
+
 local function progress(q)
   local objs = safe(C_QuestLog.GetQuestObjectives, q)
   if not objs or #objs == 0 then return "" end
@@ -300,6 +319,7 @@ local function collectPoints(m, seen, ctx, px, py)
         if not (hard and DB.hideHard) then
           local p = newPoint(m, s.q, s.x, s.y)
           p.accept = true
+          p.giverKind, p.giverId = s.kind, s.id
           p.hard = hard or nil
           pts[#pts + 1] = p
         end
@@ -676,6 +696,7 @@ panel:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
   local p, _, rp, x, y = self:GetPoint()
   DB.pos = { p, rp, x, y }
+  if ns.PlaceTargetButton then ns.PlaceTargetButton() end
 end)
 
 local bg = panel:CreateTexture(nil, "BACKGROUND")
@@ -684,7 +705,7 @@ bg:SetColorTexture(0, 0, 0, 0.55)
 
 local header = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 header:SetPoint("TOPLEFT", 8, -6)
-header:SetPoint("RIGHT", -64, 0)
+header:SetPoint("RIGHT", -82, 0)
 header:SetJustifyH("LEFT")
 header:SetText("Wegweiser")
 
@@ -745,6 +766,83 @@ close:SetSize(20, 20)
 close:SetPoint("TOPRIGHT", 0, 0)
 close:SetScript("OnClick", function() panel:Hide(); DB.shown = false end)
 
+-- Questgeber anvisieren: sicherer Makro-Knopf. Er hängt an UIParent und nicht am Panel,
+-- sonst würde das Panel geschützt und liesse sich im Kampf nicht mehr anpassen.
+-- Position und Makro werden nur ausserhalb des Kampfs gesetzt.
+local TARGET_MARK = 2          -- Zielmarkierung «Kreis»
+local targetBtn = CreateFrame("Button", "WegweiserTargetButton", UIParent, "SecureActionButtonTemplate")
+targetBtn:SetSize(16, 16)
+targetBtn:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. TARGET_MARK)
+targetBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+targetBtn:RegisterForClicks("AnyUp", "AnyDown")   -- Maus und Tastenbelegung (Taste unten)
+targetBtn:SetAttribute("type", "macro")
+targetBtn:SetAttribute("macrotext", "")
+targetBtn:Hide()
+local targetInfo               -- { name=, index= } nächster Questgeber zum Anvisieren
+local targetPending            -- im Kampf aufgeschoben
+
+local function targetMacro(name)
+  if not name then return "" end
+  local q = string.format("%q", name)
+  return "/targetexact " .. name .. "\n/run local u='target' if UnitName(u)==" .. q
+    .. " and GetRaidTargetIndex(u)~=" .. TARGET_MARK .. " then SetRaidTarget(u," .. TARGET_MARK .. ") end"
+end
+
+local function placeTargetButton()
+  if InCombatLockdown and InCombatLockdown() then targetPending = true return end
+  targetPending = nil
+  targetBtn:SetAttribute("macrotext", targetMacro(targetInfo and targetInfo.name))
+  local nt = targetBtn:GetNormalTexture()
+  if nt and nt.SetDesaturated then nt:SetDesaturated(not targetInfo) end
+  local r, t = panel:GetRight(), panel:GetTop()
+  if panel:IsShown() and r and t then
+    targetBtn:ClearAllPoints()
+    targetBtn:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", r - 60, t - 3)
+    targetBtn:SetFrameStrata(panel:GetFrameStrata())
+    targetBtn:SetFrameLevel(panel:GetFrameLevel() + 5)
+    targetBtn:Show()
+  else
+    targetBtn:Hide()
+  end
+end
+ns.PlaceTargetButton = placeTargetButton
+
+targetBtn:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+  if targetInfo then
+    GameTooltip:AddLine(L["Anvisieren: "] .. targetInfo.name)
+    GameTooltip:AddLine(string.format(L["Questgeber an Ort %d. Klappt nur in Sichtweite; markiert ihn mit einem Kreis."], targetInfo.index), 1, 1, 1, true)
+  else
+    GameTooltip:AddLine(L["Kein Questgeber zum Anvisieren"])
+  end
+  GameTooltip:AddLine(L["Taste belegen: Optionen > Tastaturbelegung > AddOns > Wegweiser"], 0.6, 0.6, 0.6, true)
+  GameTooltip:Show()
+end)
+targetBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+panel:HookScript("OnShow", placeTargetButton)
+panel:HookScript("OnHide", placeTargetButton)
+
+-- Nächster Annehmen-Questgeber (NPC) der Route
+local function updateTarget()
+  local S, found = ns.Suggest, nil
+  if S and S.GiverInfo then
+    for i, stop in ipairs(route) do
+      if not (stop.full or stop.parked) then
+        for _, it in ipairs(stop.items) do
+          if it.accept and it.giverKind == 1 then
+            local g = S.GiverInfo(1, it.giverId)
+            if g and g.name then found = { name = g.name, index = i } break end
+          end
+        end
+      end
+      if found then break end
+    end
+  end
+  local changed = (found and found.name) ~= (targetInfo and targetInfo.name)
+  targetInfo = found
+  if changed or targetPending then placeTargetButton() end
+end
+
 local footer = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 footer:SetJustifyH("LEFT")
 
@@ -801,6 +899,7 @@ local function getRow(i)
         hasAccept = true
         local lvl = ns.Suggest.Level(it.q)
         GameTooltip:AddDoubleLine(L["Annehmen: "] .. t, lvl > 0 and (diffColor(lvl) .. L["Stufe "] .. lvl .. "|r") or "", 0.4, 0.73, 1, 0.7, 0.7, 0.7)
+        giverLines(it)
         if it.full then
           GameTooltip:AddLine("  " .. L["Kein Platz im Questlog: kommt ans Ende, bis du etwas abgegeben hast."], 1, 0.5, 0.25, true)
         elseif it.hard then
@@ -1098,6 +1197,7 @@ local function renderPanel()
   footer:SetText(footerText or "")
   panel:SetHeight(30 + top + n * ROW_H + zoneH + (footerText and (footer:GetStringHeight() + 4) or 0))
   updateDistances()
+  placeTargetButton()            -- Höhe kann die Oberkante verschoben haben
 end
 
 ------------------------------------------------------------------------
@@ -1109,6 +1209,7 @@ local PIN_SIZE = 20            -- Bildschirmpixel, unabhaengig vom Zoom
 local PIN_OFFSET = 11          -- Abzeichen schraeg oben rechts neben dem Blizzard-Symbol
 local PIN_LEVEL = 9000         -- ueber den Blizzard-Kartenpins
 local CIRCLE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
+local dots = {}                -- Laufweg-Punkte, siehe getDot
 
 local function getPin(i)
   if pins[i] then return pins[i] end
@@ -1132,6 +1233,7 @@ local function getPin(i)
     for _, it in ipairs(self.stop.items) do
       local prefix = it.ready and L["Abgeben: "] or (it.accept and L["Annehmen: "] or "")
       GameTooltip:AddLine(prefix .. title(it.q), 1, 1, 1)
+      giverLines(it)
     end
     GameTooltip:Show()
   end)
@@ -1159,11 +1261,36 @@ local function layoutPins()
       p:SetFrameLevel(PIN_LEVEL - p.index)   -- Ort 1 liegt zuoberst
     end
   end
+  for _, d in ipairs(dots) do
+    if d:IsShown() and d.px then
+      d:SetScale(k)
+      d:ClearAllPoints()
+      d:SetPoint("CENTER", canvas, "TOPLEFT", d.px * w / k, -d.py * h / k)
+      d:SetFrameLevel(PIN_LEVEL - 200)
+    end
+  end
+end
+
+-- Laufwege wandernder Questgeber: kleine blaue Punkte (dots ist weiter oben deklariert)
+local DOT_SIZE = 5
+local MAX_DOTS_PER_PATH = 40
+local function getDot(i)
+  if dots[i] then return dots[i] end
+  local d = CreateFrame("Frame", nil, canvas)
+  d:SetSize(DOT_SIZE, DOT_SIZE)
+  local t = d:CreateTexture(nil, "ARTWORK")
+  t:SetAllPoints()
+  t:SetTexture(CIRCLE)
+  t:SetVertexColor(0.4, 0.73, 1, 0.85)
+  dots[i] = d
+  return d
 end
 
 local function refreshPins()
   if not canvas then return end
   for _, p in ipairs(pins) do p:Hide() end
+  for _, d in ipairs(dots) do d:Hide() end
+  local nDots = 0
   if not DB.pins or not WorldMapFrame:IsShown() then return end
   local shown = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
   if not shown then return end
@@ -1197,6 +1324,24 @@ local function refreshPins()
         if acceptOnly then p.ring:SetVertexColor(0.4, 0.73, 1, 1) else p.ring:SetVertexColor(1, 0.82, 0, 1) end
         p.label:SetText(i)
         p:Show()
+      end
+      -- wandernde Questgeber: Laufweg auf dieser Karte
+      local S = ns.Suggest
+      if not stop.full and S and S.GiverInfo then
+        for _, it in ipairs(stop.items) do
+          local g = it.accept and it.giverKind and S.GiverInfo(it.giverKind, it.giverId)
+          if g and g.wanders then
+            for _, path in ipairs(S.GiverPaths(it.giverKind, it.giverId, shown)) do
+              local step = math.max(1, math.ceil(#path / MAX_DOTS_PER_PATH))
+              for k = 1, #path, step do
+                nDots = nDots + 1
+                local d = getDot(nDots)
+                d.px, d.py = path[k][1], path[k][2]
+                d:Show()
+              end
+            end
+          end
+        end
       end
     end
   end
@@ -1329,6 +1474,7 @@ local function recalc()
     end
   end
 
+  updateTarget()
   if panel:IsShown() then renderPanel() end
   refreshPins()
 end
@@ -1410,7 +1556,12 @@ ev:RegisterEvent("QUEST_TURNED_IN")
 ev:RegisterEvent("QUEST_REMOVED")
 ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 ev:RegisterEvent("ZONE_CHANGED")
+ev:RegisterEvent("PLAYER_REGEN_ENABLED")
 ev:SetScript("OnEvent", function(_, event, a1, a2)
+  if event == "PLAYER_REGEN_ENABLED" then
+    if targetPending then placeTargetButton() end
+    return
+  end
   if event == "ADDON_LOADED" then
     if a1 == ADDON_NAME then
       WegweiserDB = type(WegweiserDB) == "table" and WegweiserDB or {}
@@ -1570,6 +1721,7 @@ local function resetPosition()
   panel:ClearAllPoints()
   panel:SetPoint("RIGHT", UIParent, "RIGHT", -60, 120)
   panel:Show(); DB.shown = true
+  placeTargetButton()
 end
 
 -- Ein Schalter aendern; value = nil heisst umschalten
