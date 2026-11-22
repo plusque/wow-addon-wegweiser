@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.4 – 2026-11-22
+- Target button no longer triggers WoW's "custom scripts" warning: the macro only targets, the circle marker is set by the addon itself
+
 ## 0.6.3 – 2026-11-22
 - **Quest givers in tooltips:** suggestions to accept now show who gives the quest – name and title (e.g. "from Ragnar Thunderbrew <Innkeeper>") or the object (e.g. a wanted poster)
 - Quest givers that walk around are marked "walks around", and their path is drawn as small blue dots on the world map; givers with several locations show how many there are

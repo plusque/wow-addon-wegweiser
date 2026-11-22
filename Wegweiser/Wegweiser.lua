@@ -1,4 +1,4 @@
--- Wegweiser 0.6.3
+-- Wegweiser 0.6.4
 -- Ordnet die Quests im Log, die in der aktuellen Zone liegen, zu einer kurzen Route:
 -- Orte werden gebuendelt, jeder Ort nur einmal angelaufen. Mit QuestieDB kommen
 -- Vorschläge für Quests dazu, die man in der Zone noch annehmen kann.
@@ -781,11 +781,11 @@ targetBtn:Hide()
 local targetInfo               -- { name=, index= } nächster Questgeber zum Anvisieren
 local targetPending            -- im Kampf aufgeschoben
 
+-- Nur anvisieren; die Markierung setzt PostClick im Addon-Code. Eine /run-Zeile im Makro
+-- würde WoWs Warnung «benutzerdefiniertes Skript» auslösen.
 local function targetMacro(name)
   if not name then return "" end
-  local q = string.format("%q", name)
-  return "/targetexact " .. name .. "\n/run local u='target' if UnitName(u)==" .. q
-    .. " and GetRaidTargetIndex(u)~=" .. TARGET_MARK .. " then SetRaidTarget(u," .. TARGET_MARK .. ") end"
+  return "/targetexact " .. name
 end
 
 local function placeTargetButton()
@@ -806,6 +806,13 @@ local function placeTargetButton()
   end
 end
 ns.PlaceTargetButton = placeTargetButton
+
+targetBtn:SetScript("PostClick", function()
+  local name = targetInfo and targetInfo.name
+  if name and UnitName("target") == name and GetRaidTargetIndex("target") ~= TARGET_MARK then
+    SetRaidTarget("target", TARGET_MARK)
+  end
+end)
 
 targetBtn:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
